@@ -3,7 +3,7 @@
 
   Author: Francesc Alted <francesc@blosc.org>
 
-  See LICENSES/BLOSC.txt for details about copyright and rights to use.
+  See LICENSE.txt for details about copyright and rights to use.
 **********************************************************************/
 
 /* Generic (non-hardware-accelerated) shuffle/unshuffle routines.
@@ -15,7 +15,7 @@
 #ifndef SHUFFLE_GENERIC_H
 #define SHUFFLE_GENERIC_H
 
-#include "shuffle-common.h"
+#include "blosc-common.h"
 #include <stdlib.h>
 
 #ifdef __cplusplus
@@ -83,14 +83,14 @@ static void unshuffle_generic_inline(const size_t type_size,
 /**
   Generic (non-hardware-accelerated) shuffle routine.
 */
-BLOSC_NO_EXPORT void shuffle_generic(const size_t bytesoftype, const size_t blocksize,
-                                      const uint8_t* const _src, uint8_t* const _dest);
+BLOSC_NO_EXPORT void blosc_internal_shuffle_generic(const size_t bytesoftype, const size_t blocksize,
+                                                    const uint8_t* const _src, uint8_t* const _dest);
 
 /**
   Generic (non-hardware-accelerated) unshuffle routine.
 */
-BLOSC_NO_EXPORT void unshuffle_generic(const size_t bytesoftype, const size_t blocksize,
-                                        const uint8_t* const _src, uint8_t* const _dest);
+BLOSC_NO_EXPORT void blosc_internal_unshuffle_generic(const size_t bytesoftype, const size_t blocksize,
+                                                      const uint8_t* const _src, uint8_t* const _dest);
 
 #ifdef __cplusplus
 }

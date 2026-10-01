@@ -6,7 +6,7 @@
   Creation date: 2010-06-07
   Author: Francesc Alted <francesc@blosc.org>
 
-  See LICENSES/BLOSC.txt for details about copyright and rights to use.
+  See LICENSE.txt for details about copyright and rights to use.
 **********************************************************************/
 
 #ifndef BLOSC_TEST_COMMON_H
@@ -29,16 +29,16 @@
 #include <math.h>
 #include "../blosc/blosc.h"
 
-#if defined(_WIN32) && !defined(__MINGW32__)
-  /* MSVC does not have setenv */
+#if defined(_WIN32)
+  /* MSVC and MinGW do not have setenv */
   #define setenv(name, value, overwrite) do {_putenv_s(name, value);} while(0)
 #endif
 
 
-/* This is MinUnit in action (http://www.jera.com/techinfo/jtns/jtn002.html) */
+/* This is MinUnit in action (https://jera.com/techinfo/jtns/jtn002) */
 #define mu_assert(message, test) do { if (!(test)) return message; } while (0)
 #define mu_run_test(test) do \
-    { char *message = test(); tests_run++;                          \
+    { const char *message = test(); tests_run++;                          \
       if (message) { printf("%c", 'F'); return message;}            \
       else printf("%c", '.'); } while (0)
 
@@ -54,7 +54,7 @@ extern int tests_run;
 
 /** Allocates a block of memory with the specified size and alignment.
     The allocated memory is 'cleaned' before returning to avoid
-    accidental re-use of data within or between tests.
+    accidental reuse of data within or between tests.
  */
 static void* blosc_test_malloc(const size_t alignment, const size_t size)
 {
@@ -62,7 +62,7 @@ static void* blosc_test_malloc(const size_t alignment, const size_t size)
   void *block = NULL;
   int32_t res = 0;
 
-#if _ISOC11_SOURCE || (__STDC_VERSION__ >= 201112L && !defined(__APPLE__))
+#if defined(_ISOC11_SOURCE) || (defined(__FreeBSD__) && __STDC_VERSION__ >= 201112L)
   /* C11 aligned allocation. 'size' must be a multiple of the alignment. */
   block = aligned_alloc(alignment, size);
 #elif defined(_WIN32)

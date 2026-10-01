@@ -3,11 +3,9 @@ add_definitions(-DUSING_CMAKE)
 
 set(INTERNAL_LIBS ${PROJECT_SOURCE_DIR}/internal-complibs)
 
-# Hide symbols by default unless they're specifically exported.
-# This makes it easier to keep the set of exported symbols the
-# same across all compilers/platforms.
-set(CMAKE_C_VISIBILITY_PRESET hidden)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(HIDE_SYMBOLS)
+  set(CMAKE_C_VISIBILITY_PRESET hidden)
+endif(HIDE_SYMBOLS)
 
 # includes
 set(BLOSC_INCLUDE_DIRS ${BLOSC_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
@@ -15,7 +13,7 @@ if(NOT DEACTIVATE_LZ4)
     if (LZ4_FOUND)
         set(BLOSC_INCLUDE_DIRS ${BLOSC_INCLUDE_DIRS} ${LZ4_INCLUDE_DIR})
     else(LZ4_FOUND)
-        set(LZ4_LOCAL_DIR ${INTERNAL_LIBS}/lz4-1.7.5)
+        set(LZ4_LOCAL_DIR ${INTERNAL_LIBS}/lz4-1.10.0)
         set(BLOSC_INCLUDE_DIRS ${BLOSC_INCLUDE_DIRS} ${LZ4_LOCAL_DIR})
     endif(LZ4_FOUND)
 endif(NOT DEACTIVATE_LZ4)
@@ -33,7 +31,7 @@ if(NOT DEACTIVATE_ZLIB)
     if (ZLIB_FOUND)
         set(BLOSC_INCLUDE_DIRS ${BLOSC_INCLUDE_DIRS} ${ZLIB_INCLUDE_DIR})
     else(ZLIB_FOUND)
-        set(ZLIB_LOCAL_DIR ${INTERNAL_LIBS}/zlib-1.2.8)
+        set(ZLIB_LOCAL_DIR ${INTERNAL_LIBS}/zlib-1.3.1)
         set(BLOSC_INCLUDE_DIRS ${BLOSC_INCLUDE_DIRS} ${ZLIB_LOCAL_DIR})
     endif(ZLIB_FOUND)
 endif(NOT DEACTIVATE_ZLIB)
@@ -42,7 +40,7 @@ if (NOT DEACTIVATE_ZSTD)
     if (ZSTD_FOUND)
         set(BLOSC_INCLUDE_DIRS ${BLOSC_INCLUDE_DIRS} ${ZSTD_INCLUDE_DIR})
     else (ZSTD_FOUND)
-        set(ZSTD_LOCAL_DIR ${INTERNAL_LIBS}/zstd-1.1.3)
+        set(ZSTD_LOCAL_DIR ${INTERNAL_LIBS}/zstd-1.5.6)
         set(BLOSC_INCLUDE_DIRS ${BLOSC_INCLUDE_DIRS} ${ZSTD_LOCAL_DIR} ${ZSTD_LOCAL_DIR}/common)
     endif (ZSTD_FOUND)
 endif (NOT DEACTIVATE_ZSTD)
@@ -50,7 +48,8 @@ endif (NOT DEACTIVATE_ZSTD)
 include_directories(${BLOSC_INCLUDE_DIRS})
 
 # library sources
-set(SOURCES blosc.c blosclz.c shuffle-generic.c bitshuffle-generic.c)
+set(SOURCES blosc.c blosclz.c fastcopy.c shuffle-generic.c bitshuffle-generic.c
+        blosc-common.h blosc-export.h)
 if(COMPILER_SUPPORT_SSE2)
     message(STATUS "Adding run-time support for SSE2")
     set(SOURCES ${SOURCES} shuffle-sse2.c bitshuffle-sse2.c)
@@ -61,11 +60,10 @@ if(COMPILER_SUPPORT_AVX2)
 endif(COMPILER_SUPPORT_AVX2)
 set(SOURCES ${SOURCES} shuffle.c)
 
-# library install directory
-set(lib_dir lib${LIB_SUFFIX})
 set(version_string ${BLOSC_VERSION_MAJOR}.${BLOSC_VERSION_MINOR}.${BLOSC_VERSION_PATCH})
 
-set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE) # pre 3.1
+set(THREADS_PREFER_PTHREAD_FLAG TRUE) # CMake 3.1+
 if(WIN32)
     # try to use the system library
     find_package(Threads)
@@ -73,11 +71,19 @@ if(WIN32)
         message(STATUS "using the internal pthread library for win32 systems.")
         set(SOURCES ${SOURCES} win32/pthread.c)
     else(NOT Threads_FOUND)
-        set(LIBS ${LIBS} ${CMAKE_THREAD_LIBS_INIT})
+        if(CMAKE_VERSION VERSION_LESS 3.1)
+            set(LIBS ${LIBS} ${CMAKE_THREAD_LIBS_INIT})
+        else()
+            set(LIBS ${LIBS} Threads::Threads)
+        endif()
     endif(NOT Threads_FOUND)
 else(WIN32)
     find_package(Threads REQUIRED)
-    set(LIBS ${LIBS} ${CMAKE_THREAD_LIBS_INIT})
+    if(CMAKE_VERSION VERSION_LESS 3.1)
+        set(LIBS ${LIBS} ${CMAKE_THREAD_LIBS_INIT})
+    else()
+        set(LIBS ${LIBS} Threads::Threads)
+    endif()
 endif(WIN32)
 
 if(NOT DEACTIVATE_LZ4)
@@ -86,6 +92,7 @@ if(NOT DEACTIVATE_LZ4)
     else(LZ4_FOUND)
         file(GLOB LZ4_FILES ${LZ4_LOCAL_DIR}/*.c)
         set(SOURCES ${SOURCES} ${LZ4_FILES})
+        source_group("LZ4" FILES ${LZ4_FILES})
     endif(LZ4_FOUND)
 endif(NOT DEACTIVATE_LZ4)
 
@@ -95,6 +102,7 @@ if(NOT DEACTIVATE_SNAPPY)
     else(SNAPPY_FOUND)
         file(GLOB SNAPPY_FILES ${SNAPPY_LOCAL_DIR}/*.cc)
         set(SOURCES ${SOURCES} ${SNAPPY_FILES})
+        source_group("Snappy" FILES ${SNAPPY_FILES})
     endif(SNAPPY_FOUND)
 endif(NOT DEACTIVATE_SNAPPY)
 
@@ -104,6 +112,7 @@ if(NOT DEACTIVATE_ZLIB)
     else(ZLIB_FOUND)
         file(GLOB ZLIB_FILES ${ZLIB_LOCAL_DIR}/*.c)
         set(SOURCES ${SOURCES} ${ZLIB_FILES})
+        source_group("Zlib" FILES ${ZLIB_FILES})
     endif(ZLIB_FOUND)
 endif(NOT DEACTIVATE_ZLIB)
 
@@ -111,17 +120,29 @@ if (NOT DEACTIVATE_ZSTD)
     if (ZSTD_FOUND)
         set(LIBS ${LIBS} ${ZSTD_LIBRARY})
     else (ZSTD_FOUND)
-      file(GLOB ZSTD_FILES
-        ${ZSTD_LOCAL_DIR}/common/*.c
-        ${ZSTD_LOCAL_DIR}/compress/*.c
-        ${ZSTD_LOCAL_DIR}/decompress/*.c)
+        # Enable assembly code only when not using MSVC *and* x86 is there
+        if((NOT MSVC) AND COMPILER_SUPPORT_SSE2)   # if SSE2 is here, this is an x86 platform
+            message(STATUS "Adding support for assembly sources in ZSTD")
+            file(GLOB ZSTD_DECOMPRESS_FILES ${ZSTD_LOCAL_DIR}/decompress/*.S)
+        else()
+            message(STATUS "Disabling support for assembly sources in ZSTD")
+            add_compile_definitions("ZSTD_DISABLE_ASM")
+        endif()
+        file(GLOB ZSTD_DECOMPRESS_FILES ${ZSTD_DECOMPRESS_FILES}
+                ${ZSTD_LOCAL_DIR}/decompress/*.c)
+        file(GLOB ZSTD_COMMON_FILES ${ZSTD_LOCAL_DIR}/common/*.c)
+        file(GLOB ZSTD_COMPRESS_FILES ${ZSTD_LOCAL_DIR}/compress/*.c)
+        file(GLOB ZSTD_DICT_FILES ${ZSTD_LOCAL_DIR}/dictBuilder/*.c)
+        set(ZSTD_FILES ${ZSTD_COMMON_FILES} ${ZSTD_COMPRESS_FILES}
+            ${ZSTD_DECOMPRESS_FILES} ${ZSTD_DICT_FILES})
         set(SOURCES ${SOURCES} ${ZSTD_FILES})
+        source_group("Zstd" FILES ${ZSTD_FILES})
     endif (ZSTD_FOUND)
 endif (NOT DEACTIVATE_ZSTD)
 
 
 # targets
-if (CBLOSC_BUILD_SHARED)
+if (BUILD_SHARED)
     add_library(blosc_shared SHARED ${SOURCES})
     set_target_properties(blosc_shared PROPERTIES OUTPUT_NAME blosc)
     set_target_properties(blosc_shared PROPERTIES
@@ -155,9 +176,11 @@ if(COMPILER_SUPPORT_SSE2)
 endif(COMPILER_SUPPORT_SSE2)
 if(COMPILER_SUPPORT_AVX2)
     if (MSVC)
-        set_source_files_properties(shuffle-avx2.c bitshuffle-avx2.c PROPERTIES COMPILE_FLAGS "/arch:AVX2")
+        set_source_files_properties(shuffle-avx2.c bitshuffle-avx2.c
+                PROPERTIES COMPILE_FLAGS "/arch:AVX2")
     else (MSVC)
-        set_source_files_properties(shuffle-avx2.c bitshuffle-avx2.c PROPERTIES COMPILE_FLAGS -mavx2)
+        set_source_files_properties(shuffle-avx2.c bitshuffle-avx2.c
+                PROPERTIES COMPILE_FLAGS -mavx2)
     endif (MSVC)
 
     # Define a symbol for the shuffle-dispatch implementation
@@ -171,7 +194,7 @@ endif(COMPILER_SUPPORT_AVX2)
 # When the option has been selected to compile the test suite,
 # compile an additional version of blosc_shared which exports
 # some normally-hidden symbols (to facilitate unit testing).
-if (CBLOSC_BUILD_TESTS)
+if (BUILD_TESTS)
     add_library(blosc_shared_testing SHARED ${SOURCES})
     set_target_properties(blosc_shared_testing PROPERTIES OUTPUT_NAME blosc_testing)
     set_property(
@@ -180,26 +203,19 @@ if (CBLOSC_BUILD_TESTS)
     set_property(
         TARGET blosc_shared_testing
         APPEND PROPERTY COMPILE_DEFINITIONS BLOSC_TESTING)
-    # TEMP : CMake doesn't automatically add -lpthread here like it does
-    # for the blosc_shared target. Force it for now.
-    if(UNIX)
-        set_property(
-            TARGET blosc_shared_testing
-            APPEND PROPERTY LINK_FLAGS "-lpthread")
-    endif()
 endif()
 
-if (CBLOSC_BUILD_SHARED)
+if (BUILD_SHARED)
     target_link_libraries(blosc_shared ${LIBS})
     target_include_directories(blosc_shared PUBLIC ${BLOSC_INCLUDE_DIRS})
 endif()
 
-if (CBLOSC_BUILD_TESTS)
+if (BUILD_TESTS)
     target_link_libraries(blosc_shared_testing ${LIBS})
     target_include_directories(blosc_shared_testing PUBLIC ${BLOSC_INCLUDE_DIRS})
 endif()
 
-if(CBLOSC_BUILD_STATIC)
+if(BUILD_STATIC)
     add_library(blosc_static STATIC ${SOURCES})
     set_target_properties(blosc_static PROPERTIES OUTPUT_NAME blosc)
     if (MSVC)
@@ -207,13 +223,19 @@ if(CBLOSC_BUILD_STATIC)
     endif()
     target_link_libraries(blosc_static ${LIBS})
     target_include_directories(blosc_static PUBLIC ${BLOSC_INCLUDE_DIRS})
-endif(CBLOSC_BUILD_STATIC)
+endif(BUILD_STATIC)
 
 # install
 if(BLOSC_INSTALL)
-    install(FILES blosc.h blosc-export.h DESTINATION include COMPONENT DEV)
-    install(TARGETS blosc_shared DESTINATION ${lib_dir} COMPONENT LIB)
-    if(CBLOSC_BUILD_STATIC)
-        install(TARGETS blosc_static DESTINATION ${lib_dir} COMPONENT DEV)
-    endif(CBLOSC_BUILD_STATIC)
+    install(FILES blosc.h blosc-export.h
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT DEV)
+    if(BUILD_SHARED)
+        install(TARGETS blosc_shared
+                LIBRARY COMPONENT LIB
+                ARCHIVE COMPONENT DEV
+                RUNTIME COMPONENT LIB)
+    endif(BUILD_SHARED)
+    if(BUILD_STATIC)
+        install(TARGETS blosc_static COMPONENT DEV)
+    endif(BUILD_STATIC)
 endif(BLOSC_INSTALL)

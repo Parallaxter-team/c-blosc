@@ -4,31 +4,23 @@ set(SOURCES bench.c)
 
 # targets
 add_executable(bench ${SOURCES})
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT HAIKU)
   # cmake is complaining about LINK_PRIVATE in original PR
   # and removing it does not seem to hurt, so be it.
   # target_link_libraries(bench LINK_PRIVATE rt)
   target_link_libraries(bench rt)
-endif(UNIX AND NOT APPLE)
+endif(UNIX AND NOT APPLE AND NOT HAIKU)
 target_link_libraries(bench blosc_shared)
 
 # have to copy blosc dlls on Windows
-if(MSVC)
+if(MSVC OR MINGW)
     add_custom_command(
         TARGET      bench
         POST_BUILD
         COMMAND     ${CMAKE_COMMAND}
         ARGS        -E copy_if_different
-                    "${PROJECT_BINARY_DIR}/blosc/\$\(Configuration\)/blosc.dll"
-                    "${CMAKE_CURRENT_BINARY_DIR}/\$\(Configuration\)/blosc.dll")
-elseif(MINGW)
-    add_custom_command(
-        TARGET      bench
-        POST_BUILD
-        COMMAND     ${CMAKE_COMMAND}
-        ARGS        -E copy_if_different
-                    "${PROJECT_BINARY_DIR}/blosc/libblosc.dll"
-                    "${CMAKE_CURRENT_BINARY_DIR}/libblosc.dll")
+                    "$<TARGET_FILE:blosc_shared>"
+                    "$<TARGET_FILE_DIR:bench>/$<TARGET_FILE_NAME:blosc_shared>")
 endif()
 
 # tests
