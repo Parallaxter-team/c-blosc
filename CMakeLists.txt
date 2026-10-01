@@ -3,15 +3,15 @@
 #
 # Available options:
 #
-#   BUILD_STATIC: default ON
+#   CBLOSC_BUILD_STATIC: default ON
 #       build the static version of the Blosc library
-#   BUILD_SHARED: default ON
+#   CBLOSC_BUILD_SHARED: default OFF
 #       build the shared library version of the Blosc library
-#   BUILD_TESTS: default ON
+#   CBLOSC_BUILD_TESTS: default OFF
 #       build test programs and generates the "test" target
-#   BUILD_FUZZERS: default ON
+#   CBLOSC_BUILD_BENCHMARKS: default OFF
 #       build fuzz test programs and generates the "fuzz" target
-#   BUILD_BENCHMARKS: default ON
+#   CBLOSC_BUILD_BENCHMARKS: default OFF
 #       build the benchmark program
 #   HIDE_SYMBOLS: default ON
 #       hide the symbols that aren't specifically exported
@@ -97,21 +97,21 @@ else()
 endif()
 
 # options
-option(BUILD_STATIC
+option(CBLOSC_BUILD_STATIC
     "Build a static version of the blosc library." ON)
-option(BUILD_SHARED
-    "Build a shared library version of the blosc library." ON)
-option(BUILD_TESTS
-    "Build test programs from the blosc compression library" ON)
-option(BUILD_FUZZERS
+option(CBLOSC_BUILD_SHARED
+    "Build a shared library version of the blosc library." OFF)
+option(CBLOSC_BUILD_TESTS
+    "Build test programs from the blosc compression library" OFF)
+option(CBLOSC_BUILD_FUZZERS
     "Build fuzzer programs from the blosc compression library" ${BUILD_STATIC})
 # Hide symbols by default unless they're specifically exported.
 # This makes it easier to keep the set of exported symbols the
 # same across all compilers/platforms.
 option(HIDE_SYMBOLS
     "Build a libraries with hidden symbols unless they're specifically exported" ON)
-option(BUILD_BENCHMARKS
-    "Build benchmark programs from the blosc compression library" ON)
+option(CBLOSC_BUILD_BENCHMARKS
+    "Build benchmark programs from the blosc compression library" OFF)
 option(DEACTIVATE_SSE2
     "Do not attempt to build with SSE2 instructions" OFF)
 option(DEACTIVATE_AVX2
@@ -119,7 +119,7 @@ option(DEACTIVATE_AVX2
 option(DEACTIVATE_LZ4
     "Do not include support for the LZ4 library." OFF)
 option(DEACTIVATE_SNAPPY
-    "Do not include support for the Snappy library." ON)
+    "Do not include support for the Snappy library." OFF)
 option(DEACTIVATE_ZLIB
     "Do not include support for the Zlib library." OFF)
 option(DEACTIVATE_ZSTD
@@ -191,14 +191,14 @@ configure_file("blosc/config.h.in"  "blosc/config.h" )
 include_directories("${PROJECT_BINARY_DIR}/blosc/")
 
 # If the build type is not set, default to Release.
-set(BLOSC_DEFAULT_BUILD_TYPE Release)
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    message(STATUS "No build type specified. Defaulting to '${BLOSC_DEFAULT_BUILD_TYPE}'.")
-    set(CMAKE_BUILD_TYPE ${BLOSC_DEFAULT_BUILD_TYPE} CACHE STRING
+set(BLOSC_DEFAULT_CBLOSC_BUILD_TYPE Release)
+if(NOT CMAKE_CBLOSC_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "No build type specified. Defaulting to '${BLOSC_DEFAULT_CBLOSC_BUILD_TYPE}'.")
+    set(CMAKE_CBLOSC_BUILD_TYPE ${BLOSC_DEFAULT_CBLOSC_BUILD_TYPE} CACHE STRING
         "Choose the type of build." FORCE)
 
     # Set the possible values of build type for cmake-gui
-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    set_property(CACHE CMAKE_CBLOSC_BUILD_TYPE PROPERTY STRINGS
         "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
@@ -324,13 +324,13 @@ endif()
 # subdirectories
 add_subdirectory(blosc)
 
-if(BUILD_TESTS)
+if(CBLOSC_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
     add_subdirectory(compat)
 endif()
 
-if(BUILD_FUZZERS)
+if(CBLOSC_BUILD_FUZZERS)
     if(NOT BUILD_STATIC)
         message(FATAL_ERROR "BUILD_FUZZERS requires BUILD_STATIC to be enabled.")
     endif()
@@ -338,7 +338,7 @@ if(BUILD_FUZZERS)
     add_subdirectory(tests/fuzz)
 endif()
 
-if(BUILD_BENCHMARKS)
+if(CBLOSC_BUILD_BENCHMARKS)
     add_subdirectory(bench)
 endif()
 

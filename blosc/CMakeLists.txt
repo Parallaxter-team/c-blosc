@@ -142,7 +142,7 @@ endif (NOT DEACTIVATE_ZSTD)
 
 
 # targets
-if (BUILD_SHARED)
+if (BLOSC_BUILD_SHARED)
     add_library(blosc_shared SHARED ${SOURCES})
     set_target_properties(blosc_shared PROPERTIES OUTPUT_NAME blosc)
     set_target_properties(blosc_shared PROPERTIES
@@ -205,17 +205,17 @@ if (BUILD_TESTS)
         APPEND PROPERTY COMPILE_DEFINITIONS BLOSC_TESTING)
 endif()
 
-if (BUILD_SHARED)
+if (CBLOSC_BUILD_SHARED)
     target_link_libraries(blosc_shared ${LIBS})
     target_include_directories(blosc_shared PUBLIC ${BLOSC_INCLUDE_DIRS})
 endif()
 
-if (BUILD_TESTS)
+if (CBLOSC_BUILD_TESTS)
     target_link_libraries(blosc_shared_testing ${LIBS})
     target_include_directories(blosc_shared_testing PUBLIC ${BLOSC_INCLUDE_DIRS})
 endif()
 
-if(BUILD_STATIC)
+if(CBLOSC_BUILD_STATIC)
     add_library(blosc_static STATIC ${SOURCES})
     set_target_properties(blosc_static PROPERTIES OUTPUT_NAME blosc)
     if (MSVC)
@@ -223,7 +223,7 @@ if(BUILD_STATIC)
     endif()
     target_link_libraries(blosc_static ${LIBS})
     target_include_directories(blosc_static PUBLIC ${BLOSC_INCLUDE_DIRS})
-endif(BUILD_STATIC)
+endif(CBLOSC_BUILD_STATIC)
 
 # install
 if(BLOSC_INSTALL)
