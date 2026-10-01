@@ -194,7 +194,7 @@ endif(COMPILER_SUPPORT_AVX2)
 # When the option has been selected to compile the test suite,
 # compile an additional version of blosc_shared which exports
 # some normally-hidden symbols (to facilitate unit testing).
-if (BUILD_TESTS)
+if (CBLOSC_BUILD_TESTS)
     add_library(blosc_shared_testing SHARED ${SOURCES})
     set_target_properties(blosc_shared_testing PROPERTIES OUTPUT_NAME blosc_testing)
     set_property(
